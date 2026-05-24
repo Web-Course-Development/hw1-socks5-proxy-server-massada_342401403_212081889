@@ -32,16 +32,21 @@ A SOCKS5 proxy server in Go that supports the **CONNECT** command (RFC 1928). Yo
 
 ## Working with GitHub Classroom
 
-This assignment is distributed and graded through **GitHub Classroom**. Your repo is private to you and the course staff; every `git push` runs the 10 autograder tests and updates your grade.
+This assignment is distributed and graded through **GitHub Classroom** as a **team assignment** (up to 3 students per team — you can also work alone by creating a team of one). Your team's repo is public to the course org; every `git push` runs the 10 autograder tests and updates the team's grade.
 
 ### One-time setup
 
 ```bash
 # 1. Open the GitHub Classroom invitation link from the LMS announcement
-# 2. Accept the assignment — GitHub creates a private repo for you
-# 3. Clone it locally:
-git clone https://github.com/Web-Course-Development/hw1-socks5-proxy-<your-username>.git
-cd hw1-socks5-proxy-<your-username>
+# 2. Choose your team:
+#      - Create a new team (you'll be the first member; share the same
+#        invitation link with up to 2 teammates so they can join your team)
+#      - OR join an existing team that a teammate already created
+#      - OR create a team of just yourself to work alone
+# 3. Accept the assignment — GitHub creates a shared repo for your team
+# 4. Clone it locally:
+git clone https://github.com/Web-Course-Development/hw1-socks5-proxy-server-<team-name>.git
+cd hw1-socks5-proxy-server-<team-name>
 ```
 
 ### Day-to-day workflow
