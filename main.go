@@ -30,14 +30,15 @@ func main() {
 	}
 }
 
-
-// ASSIGNMENT STARTS HERE: 
-
-// tldr: 
+// the idea: 
 // check 0x05 for SOCKS5 -> check 0x00 OR 0x02 for username\pass
 // if 0x02 in methods -> jump into authenticateUserPass()
 // if 0x00 or after authenticateUser -> jump into handleConnection()
 // after handleConnection -> jump into relay()
+
+
+
+// returns error or nil
 func negotiateAuth(conn net.Conn) error { 
 	header := make([]byte, 2)
 	if _, err := io.ReadFull(conn, header); err != nil {
@@ -86,12 +87,15 @@ func negotiateAuth(conn net.Conn) error {
 		return errors.New("no acceptable methods")
 	}
 	if(res[1]==0x02){
-		authenticateUserPass(conn)
+		result := authenticateUserPass(conn)
+		if(result!=nil) { // function returns nil or error
+			return result
+		}
 	}
-	// if its 0x00: continue somewhere, donno yet
 	return nil
 }
 
+// returns error or nil
 func authenticateUserPass(conn net.Conn) error {
 	header := make([]byte, 2) // taking in version and userLen
 	if _, err := io.ReadFull(conn, header); err != nil {
@@ -117,15 +121,36 @@ func authenticateUserPass(conn net.Conn) error {
 
 	expectedUser := os.Getenv("PROXY_USER")
 	expectedPass := os.Getenv("PROXY_PASS")
+
+	res := make([]byte, 2)
+	res[0] = 0x01
+
+
 	if (expectedUser == string(username) && expectedPass == string(password)){
 		// correct auth info! 
+		res[1] = 0x00
+
 	} else{
-		// close connection and send error
+		res[1] = 0x01
+		// error
 	}
+	
+	_, err := conn.Write(res)
+	if err != nil {
+   	return err 
+	}
+
+	if(res[1]== 0x00){
+		return nil
+	} else {
+		conn.Close()
+		return errors.New("wrong authentication info")
+	}
+
 
 }
 
-
+// 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
