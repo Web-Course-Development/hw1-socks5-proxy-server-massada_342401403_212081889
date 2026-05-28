@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 )
 
 func main() { 
@@ -54,7 +55,7 @@ func negotiateAuth(conn net.Conn) error {
 	authNotNeeded := false
 	authNeeded := false
 
-	for i := 0; i < nmethods; i++ {
+	for i := 0; i < int(nmethods); i++ {
 		if methods[i] == 0x02 {
 			authNeeded = true // found 0x02 so the connection supports the username and password
 		}
@@ -62,20 +63,20 @@ func negotiateAuth(conn net.Conn) error {
 			authNotNeeded = true // found 0x00 so the connection supports no username and password
 		}
 	}
+
 	// building the response package:
 	res := make([]byte, 2)
 	res[0] = 0x05
 
-	if (authNeeded==true) {
+	expectedUser := os.Getenv("PROXY_USER") // asking the OS if the admin provided a password
+	if (expectedUser != "" && authNeeded==true){ // the client gave 0x02 (username and password) AND admin had set auth info
 		res[1] = 0x02
-	} else if (authNotNeeded==true) {
+	} else if (expectedUser == "" && authNotNeeded==true) { // supports no auth AND admin gave no auth info
 		res[1] = 0x00
-	} else {
-		res[1] = 0xff
+	} else { // else error
+		res[1] = 0xff 
 	}
-	// since i think 0x02 takes higher priority, 
-	// if there is both 0x02 AND 0x00 we will stay with 0x02
-	
+
 	_, err := conn.Write(res)
 	if err != nil {
    	return err 
@@ -87,12 +88,11 @@ func negotiateAuth(conn net.Conn) error {
 	if(res[1]==0x02){
 		authenticateUserPass(conn)
 	}
-
+	// if its 0x00: continue somewhere, donno yet
 	return nil
 }
 
-func authenticateUserPass(conn net.Conn){
-	
+func authenticateUserPass(conn net.Conn) error {
 	header := make([]byte, 2) // taking in version and userLen
 	if _, err := io.ReadFull(conn, header); err != nil {
 		return err
@@ -115,7 +115,13 @@ func authenticateUserPass(conn net.Conn){
 		return err
 	}
 
-
+	expectedUser := os.Getenv("PROXY_USER")
+	expectedPass := os.Getenv("PROXY_PASS")
+	if (expectedUser == string(username) && expectedPass == string(password)){
+		// correct auth info! 
+	} else{
+		// close connection and send error
+	}
 
 }
 
