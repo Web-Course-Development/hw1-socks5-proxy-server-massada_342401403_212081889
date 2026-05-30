@@ -167,40 +167,58 @@ func handleConnection(conn net.Conn) error {
 	}
 	if(header[0]!=0x05 || header[1] != 0x01 || header[2] != 0x00){
 		// at least ONE of the first bytes isnt good
+		conn.Write([]byte{0x05, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 		conn.Close()
 		return errors.New("issue in the connection attempt")
-	} else{
-		adress := ""
-		if(header[3] == 0x01){
-			ipArr := make([]byte, 4)
-			if _, err := io.ReadFull(conn, ipArr); err != nil {
-				return err
-			}
-			adress = net.IP(ipArr).String()
-		} else if(header[3] == 0x03) {
-			domainLength := make([]byte, 1)
-			if _, err := io.ReadFull(conn, domainLength); err != nil {
-				return err
-			}
-			domainArr := make([]byte, int(domainLength[0]))
-			if _, err := io.ReadFull(conn, domainArr); err != nil {
-				return err
-			}
-			adress = string(domainArr)
-		} else {
-			// not IPv4 and not domain: error
-			conn.Close()
-			return errors.New("issue in ATYP (not domain and not IPv4)")
-		}
-		port := make([]byte, 2)
-		if _, err := io.ReadFull(conn, port); err != nil {
+	}
+	adress := ""
+	if(header[3] == 0x01){
+		ipArr := make([]byte, 4)
+		if _, err := io.ReadFull(conn, ipArr); err != nil {
 			return err
 		}
-		portNum := binary.BigEndian.Uint16(port)
-		finalAdress := fmt.Sprintf("%s:%d", adress, portNum)
-		// if everything so far is okay: reply about the connection
-
+		adress = net.IP(ipArr).String()
+	} else if(header[3] == 0x03) {
+		domainLength := make([]byte, 1)
+		if _, err := io.ReadFull(conn, domainLength); err != nil {
+			return err
+		}
+		domainArr := make([]byte, int(domainLength[0]))
+		if _, err := io.ReadFull(conn, domainArr); err != nil {
+			return err
+		}
+		adress = string(domainArr)
+	} else {
+		// not IPv4 and not domain: error
+		conn.Write([]byte{0x05, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+		conn.Close()
+		return errors.New("issue in ATYP (not domain and not IPv4)")
 	}
+	port := make([]byte, 2)
+	if _, err := io.ReadFull(conn, port); err != nil {
+		return err
+	}
+	portNum := binary.BigEndian.Uint16(port)
+	finalAdress := fmt.Sprintf("%s:%d", adress, portNum)
+	// if everything so far is okay: dail and then reply about the connection
+	target, err := net.Dial("tcp", finalAdress)
+   if err != nil { // if failed: say it, close, the entire thing, and return error
+   	conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+		conn.Close()
+      return err
+   }
+	defer targetConn.Close() // i hate defer! i get it but it just doesnt click for me just yet
+
+	// send "green light" and nowe we can relay
+	err:= conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	if(err!=nil){
+		conn.Close()
+		return err
+	}
+	
+	relay(conn, targetConn)
+
+    return nil
 }
 
 
