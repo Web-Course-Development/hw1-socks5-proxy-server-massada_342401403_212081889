@@ -7,6 +7,9 @@ import (
 	"net"
 	"os"
 	"encoding/binary"
+	"errors"
+	"io"
+	"sync"
 )
 
 func main() { 
@@ -53,10 +56,8 @@ func negotiateAuth(conn net.Conn) error {
 	if _, err := io.ReadFull(conn, methods); err != nil {
 		return err
 	}
-
 	authNotNeeded := false
 	authNeeded := false
-
 	for i := 0; i < int(nmethods); i++ {
 		if methods[i] == 0x02 {
 			authNeeded = true // found 0x02 so the connection supports the username and password
@@ -65,11 +66,9 @@ func negotiateAuth(conn net.Conn) error {
 			authNotNeeded = true // found 0x00 so the connection supports no username and password
 		}
 	}
-
 	// building the response package:
 	res := make([]byte, 2)
 	res[0] = 0x05
-
 	expectedUser := os.Getenv("PROXY_USER") // asking the OS if the admin provided a password
 	if (expectedUser != "" && authNeeded==true){ // the client gave 0x02 (username and password) AND admin had set auth info
 		res[1] = 0x02
@@ -78,7 +77,6 @@ func negotiateAuth(conn net.Conn) error {
 	} else { // else error
 		res[1] = 0xff 
 	}
-
 	_, err := conn.Write(res)
 	if err != nil {
    	return err 
@@ -111,7 +109,6 @@ func authenticateUserPass(conn net.Conn) error {
 	if _, err := io.ReadFull(conn, username); err != nil {
 		return err
 	}
-	
 	passwordLen := make([]byte, 1)
 	if _, err := io.ReadFull(conn, passwordLen); err != nil {
 		return err
@@ -120,13 +117,11 @@ func authenticateUserPass(conn net.Conn) error {
 	if _, err := io.ReadFull(conn, password); err != nil {
 		return err
 	}
-
 	expectedUser := os.Getenv("PROXY_USER")
 	expectedPass := os.Getenv("PROXY_PASS")
 
 	res := make([]byte, 2)
 	res[0] = 0x01
-
 
 	if (expectedUser == string(username) && expectedPass == string(password)){
 		// correct auth info! 
@@ -141,15 +136,12 @@ func authenticateUserPass(conn net.Conn) error {
 	if err != nil {
    	return err 
 	}
-
 	if(res[1]== 0x00){
 		return nil
 	} else {
 		conn.Close()
 		return errors.New("wrong authentication info")
 	}
-
-
 }
 
 // returns error or nil if connectionwent wel
@@ -160,7 +152,6 @@ func handleConnection(conn net.Conn) error {
 		// not closing connection since it's already bene closed earlier
 		return err
 	}
-	
 	header := make([]byte, 4)
 	if _, err := io.ReadFull(conn, header); err != nil {
 		return err
@@ -207,20 +198,16 @@ func handleConnection(conn net.Conn) error {
 		conn.Close()
       return err
    }
-	defer targetConn.Close() // i hate defer! i get it but it just doesnt click for me just yet
-
+	defer target.Close() // i hate defer! i get it but it just doesnt click for me just yet
 	// send "green light" and nowe we can relay
-	err:= conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	_, err = conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 	if(err!=nil){
 		conn.Close()
 		return err
 	}
-	
-	relay(conn, targetConn)
-
+	relay(conn, target)
     return nil
 }
-
 
 func relay(client net.Conn, target net.Conn) {
 	//adapting the concurrent relay function to the full signature to prevent TCP Deadlock 
@@ -244,5 +231,3 @@ func relay(client net.Conn, target net.Conn) {
 	}()
 	wg.Wait()
 } 
-
-
